@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support-logg System</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 10px; line-height: 1.5; }
+        form { background: #f4f4f4; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        input { display: block; width: 100%; margin-bottom: 10px; padding: 8px; box-sizing: border-box; }
+        button { cursor: pointer; padding: 8px 12px; margin-top: 5px; }
+        
+        .ticket { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; position: relative; }
+        .ticket.løst { border-left: 10px solid green; background-color: #f0fff0; }
+        .ticket.uløst { border-left: 10px solid red; background-color: #fff0f0; }
+        
+        .controls { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 10px; }
+        .status-badge { font-weight: bold; text-transform: uppercase; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>Support-logg System</h1>
+
+    <form id="ticketForm">
+        <input type="text" id="problem" placeholder="Problem (Hva er feilen?)" required>
+        <input type="text" id="tiltak" placeholder="Tiltak (Hva ble gjort?)">
+        <input type="text" id="resultat" placeholder="Resultat (Ble det fikset?)">
+        <input type="text" id="forebygging" placeholder="Forebygging (Hvordan unngå det igjen?)">
+        <button type="submit" style="background: #28a745; color: white; border: none;">Lagre sak</button>
+    </form>
+
+    <div id="ticketsList">Laster saker...</div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getFirestore, collection, addDoc, onSnapshot, query, orderBy, 
+            doc, deleteDoc, updateDoc 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBU7-jGEXQZdNFbvNRBFaVFt_VTzWc8iIs",
+            authDomain: "it-support-297f3.firebaseapp.com",
+            projectId: "it-support-297f3",
+            storageBucket: "it-support-297f3.firebasestorage.app",
+            messagingSenderId: "565011810272",
+            appId: "1:565011810272:web:a74e3c5a8aa5d49b234d85"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const ticketsCol = collection(db, "tickets");
+
+        document.getElementById('ticketForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await addDoc(ticketsCol, {
+                    Problem: document.getElementById('problem').value,
+                    Tiltak: document.getElementById('tiltak').value,
+                    Resultat: document.getElementById('resultat').value,
+                    Forebygging: document.getElementById('forebygging').value,
+                    Status: "uløst", // Статус по умолчанию
+                    createdAt: Date.now()
+                });
+                e.target.reset();
+            } catch (error) {
+                console.error("Feil ved lagring:", error);
+            }
+        });
+
+        const q = query(ticketsCol, orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const list = document.getElementById('ticketsList');
+            list.innerHTML = '';
+            
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                const div = document.createElement('div');
+                div.className = `ticket ${data.Status}`;
+                
+                div.innerHTML = `
+                    <span class="status-badge">${data.Status}</span>
+                    <p><strong>Problem:</strong> ${data.Problem}</p>
+                    <p><strong>Tiltak:</strong> ${data.Tiltak}</p>
+                    <p><strong>Resultat:</strong> ${data.Resultat}</p>
+                    <p><strong>Forebygging:</strong> ${data.Forebygging}</p>
+                    
+                    <div class="controls">
+                        <button onclick="toggleStatus('${id}', '${data.Status}')">Bytt status</button>
+                        <button onclick="editTicket('${id}', '${data.Problem}')">Endre</button>
+                        <button onclick="deleteTicket('${id}')" style="color: red;">Slett</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        });
+
+        window.deleteTicket = async (id) => {
+            if (confirm("Vil du slette denne saken?")) {
+                await deleteDoc(doc(db, "tickets", id));
+            }
+        };
+
+        window.toggleStatus = async (id, currentStatus) => {
+            const newStatus = currentStatus === "uløst" ? "løst" : "uløst";
+            await updateDoc(doc(db, "tickets", id), { Status: newStatus });
+        };
+
+        window.editTicket = async (id, currentProblem) => {
+            const newProblem = prompt("Endre problembeskrivelse:", currentProblem);
+            if (newProblem !== null) {
+                await updateDoc(doc(db, "tickets", id), { Problem: newProblem });
+            }
+        };
+    </script>
+</body>
+</html>
